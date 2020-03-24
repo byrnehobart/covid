@@ -2,17 +2,18 @@ import random
 from mesa import Model, Agent
 from mesa.time import RandomActivation
 
-traits = {'normal':10000,
-          'disobedients':0,
-          'symptom_spreaders':0,
-          'social_spreaders':0,
+traits = {'normal':4900,
+          'disobedients':4900,
+          'symptom_spreaders':10,
+          'social_spreaders':10,
           'base_interactions':10, # agent interactions per day
           'base_contagion':.02, # base infection probability
           'base_cfr':.02,
           'hospital_need':0.1,
           'beds':50,
           'test_sensitivity':.99,
-          'test_specificity':0.1}
+          'test_specificity':0.1,
+          'distancing_threshold':10}
           
 class PopModel(Model):
     def __init__(self, traits):
@@ -27,7 +28,9 @@ class PopModel(Model):
         self.beds = traits['beds']
         self.sensitivity = traits['test_sensitivity']
         self.specificity = traits['test_specificity']
+        self.distancing_threshold = traits['distancing_threshold']
         self.hospitalized = 0
+        self.distancing = False
         self.schedule = RandomActivation(self)
         self.time = 0
 
@@ -53,6 +56,12 @@ class PopModel(Model):
         self.dead = len([a for a in self.schedule.agents if a.alive == False])
         self.hospitalized = len([a for a in self.schedule.agents if a.hospitalized])
         self.needs_hospital = len([a for a in self.schedule.agents if a.needs_hospital])
+        if self.infected >= self.distancing_threshold and self.distancing == False:
+            self.distancing = True
+            print("Distancing measures in effect! Compliant individuals will stop socializing so much")
+        if self.infected < self.distancing_threshold and self.distancing == True:
+            self.distancing = False
+            print("With the infection under control, distancing has been relaxed")
         self.time += 1
 
 class Person(Agent):
@@ -74,7 +83,10 @@ class Person(Agent):
             if self.model.beds > self.model.hospitalized:
                 self.hospitalized = True
                 self.model.hospitalized += 1
-        if self.model.time == (self.infected_time + 14):
+                # we update the count each time so we can check each agent's status
+                # then we reset the count each day.
+                # This saves on computation while keeping the number reconciled
+        if self.model.time >= (self.infected_time + 14):
             self.survive()
             
     def die(self):
@@ -103,34 +115,78 @@ class Person(Agent):
             self.die()
         else:
             self.cure()
+
+    def infect(self, other):
+        """Infect someone else."""
+        if other.immune == False and other.infected == False:
+            other.infected = True
+            other.infected_time = self.model.time
+            other.infected_by = self
                 
-    def infect(self):
+    def socialize(self):
         """For infected agents, infect others"""
-        interactions = random.choices(
-            population=self.model.alive,
-            k=10)
+        if self.model.distancing:
+            interactions = random.choices(
+                population = self.model.alive,
+                k = self.model.base_interactions // 3)
+        else:
+            interactions = random.choices(
+                population=self.model.alive,
+                k = self.model.base_interactions)
         for i in interactions:
-            if random.random() <= self.model.base_contagion:
-                if i.immune == False:
-                    i.infected = True
-                    i.infected_time = self.model.time
-                    i.infected_by = self
+            if random.random() <= self.model.base_interactions:
+                self.infect(i)
 
     def step(self):
         if (self.infected == True and self.alive == True):
             self.medical()
-            self.infect()
+            self.socialize()
 
 class Normal(Person):
+    """This class is empty for now, but refers to a generic agent whose
+    behavior may differ from the base class."""
     pass
 
 class Disobedient(Person):
-    pass
+    """A person who ignores distancing measures"""
+    def socialize(self):
+        """For infected agents, infect others"""
+        interactions = random.choices(
+            population=self.model.alive,
+            k = self.model.base_interactions)
+        for i in interactions:
+            if random.random() <= self.model.base_contagion:
+                self.infect(i)
 
 class SymptomSpreader(Person):
-    pass
+    """These are people who are much more contagious than average."""
+    def socialize(self):
+        """For infected agents, infect others"""
+        if self.model.distancing:
+            interactions = random.choices(
+                population = self.model.alive,
+                k = self.model.base_interactions // 3)
+        else:
+            interactions = random.choices(
+                population=self.model.alive,
+                k = self.model.base_interactions)
+        for i in interactions:
+            if random.random() <= self.model.base_contagion * 5:
+                self.infect(i)
+
 
 class SocialSpreader(Person):
-    pass
-
-# Add hospitalization
+    """These are people who are much more likely to socialize than average."""
+    def socialize(self):
+        """For infected agents, infect others"""
+        if self.model.distancing:
+            interactions = random.choices(
+                population = self.model.alive,
+                k = self.model.base_interactions)
+        else:
+            interactions = random.choices(
+                population=self.model.alive,
+                k = self.model.base_interactions * 3)
+        for i in interactions:
+            if random.random() <= self.model.base_contagion:
+                self.infect(i)
