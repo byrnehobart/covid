@@ -1,6 +1,7 @@
 import random
 from mesa import Model, Agent
 from mesa.time import RandomActivation
+from mesa.datacollection import DataCollector
 
 traits = {'normal':4900,
           'disobedients':4900,
@@ -14,8 +15,29 @@ traits = {'normal':4900,
           'test_sensitivity':.99,
           'test_specificity':0.1,
           'distancing_threshold':10}
+
           
 class PopModel(Model):
+    """This model simulaties the behavior of a population during an epidemic
+
+    A single agent starts out as infected, and the contagion spreads according to
+    simple rules. different agent types have different behaviors, viz.
+
+    - Disobedient agents ignore social distancing rules.
+    - Symptom spreaders are unusually contagious per interaction.
+    - Social spreaders are agents with a higher frequency of interactions
+
+    Other model features:
+    - Agents are contagious from the moment they're infected.
+    - At an infection threshold, distancing measures reduce interactions.
+    - Some agents need hospitalization starting one week into infection.
+    - Agents are more likely to die when they can't get hospitalized
+    - After two weeks, agents either die or become immune.
+
+    This shows the typical cadence of infections: compounding at ~R0 for a
+    while, until either behavioral changes or immunity slow the spread.
+    Eventually, the infection dies out as R declines to < 1."""
+
     def __init__(self, traits):
         self.num_normal = traits['normal']
         self.num_disobedients = traits['disobedients']
@@ -30,6 +52,7 @@ class PopModel(Model):
         self.specificity = traits['test_specificity']
         self.distancing_threshold = traits['distancing_threshold']
         self.hospitalized = 0
+        self.infected = 0
         self.distancing = False
         self.schedule = RandomActivation(self)
         self.time = 0
@@ -45,6 +68,11 @@ class PopModel(Model):
 
         self.schedule.agents[0].infected = True # one sick person
         self.schedule.agents[0].infected_time = 0
+
+        self.datacollector = DataCollector (
+            model_reporters= {"Infected": "infected",
+                              "Immune": "immune",
+                              "Dead": "dead"})
 
     def step(self):
         self.alive = [a for a in self.schedule.agents if a.alive]
@@ -62,6 +90,7 @@ class PopModel(Model):
         if self.infected < self.distancing_threshold and self.distancing == True:
             self.distancing = False
             print("With the infection under control, distancing has been relaxed")
+        self.datacollector.collect(self)
         self.time += 1
 
 class Person(Agent):
