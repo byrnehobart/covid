@@ -23,8 +23,11 @@ class PopModel(Model):
         self.base_interactions = traits['base_interactions']
         self.base_contagion = traits['base_contagion']
         self.base_cfr = traits['base_cfr']
+        self.hospital_need = traits['hospital_need']
+        self.beds = traits['beds']
         self.sensitivity = traits['test_sensitivity']
         self.specificity = traits['test_specificity']
+        self.hospitalized = 0
         self.schedule = RandomActivation(self)
         self.time = 0
 
@@ -41,11 +44,15 @@ class PopModel(Model):
         self.schedule.agents[0].infected_time = 0
 
     def step(self):
+        self.alive = [a for a in self.schedule.agents if a.alive]
         self.schedule.step()
         self.pop =len(self.schedule.agents)
+        self.living = len([a for a in self.schedule.agents if a.alive])
         self.infected = len([a for a in self.schedule.agents if a.infected])
         self.immune = len([a for a in self.schedule.agents if a.immune])
         self.dead = len([a for a in self.schedule.agents if a.alive == False])
+        self.hospitalized = len([a for a in self.schedule.agents if a.hospitalized])
+        self.needs_hospital = len([a for a in self.schedule.agents if a.needs_hospital])
         self.time += 1
 
 class Person(Agent):
@@ -58,23 +65,61 @@ class Person(Agent):
         self.hospitalized = False
         self.needs_hospital = False
 
+    def medical(self):
+        """For infected agents, update status"""
+        if self.model.time == (self.infected_time +7):
+            if random.random() <= self.model.hospital_need:
+                self.needs_hospital = True
+        if self.needs_hospital:
+            if self.model.beds > self.model.hospitalized:
+                self.hospitalized = True
+                self.model.hospitalized += 1
+        if self.model.time == (self.infected_time + 14):
+            self.survive()
+            
+    def die(self):
+        """Bookkeeping function for handling deaths."""
+        self.infected = False
+        self.alive = False
+        self.hospitalized = False
+        self.needs_hospital= False
+
+    def cure(self):
+        """Bookkeeping function for handling deaths."""
+        self.infected = False
+        self.immune = True
+        self.hospitalized = False
+        self.needs_hospital = False
+
+    def survive(self):
+        """Calculates agent's survival given traits.
+
+        We assume patients who need hospitalization have 5x death rate."""
+        outcome = random.random()
+        if self.needs_hospital and not self.hospitalized:
+            if outcome < 5 * self.model.base_cfr:
+                self.die()
+        elif outcome < self.model.base_cfr:
+            self.die()
+        else:
+            self.cure()
+                
+    def infect(self):
+        """For infected agents, infect others"""
+        interactions = random.choices(
+            population=self.model.alive,
+            k=10)
+        for i in interactions:
+            if random.random() <= self.model.base_contagion:
+                if i.immune == False:
+                    i.infected = True
+                    i.infected_time = self.model.time
+                    i.infected_by = self
+
     def step(self):
         if (self.infected == True and self.alive == True):
-            if self.model.time == (self.infected_time + 14):
-                if random.random() <= self.model.base_cfr:
-                    self.alive = False
-                else:
-                    self.immune = True
-            else:
-                interactions = random.choices(
-                    population=[x for x in self.model.schedule.agents if x.alive],
-                    k=10)
-                for i in interactions:
-                    if random.random() <= self.model.base_contagion:
-                        if i.immune == False:
-                            i.infected = True
-                            i.infected_time = self.model.time
-                            i.infected_by = self
+            self.medical()
+            self.infect()
 
 class Normal(Person):
     pass
@@ -87,3 +132,5 @@ class SymptomSpreader(Person):
 
 class SocialSpreader(Person):
     pass
+
+# Add hospitalization
