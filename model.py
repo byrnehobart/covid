@@ -25,7 +25,7 @@ class PopModel(Model):
 
     - Disobedient agents ignore social distancing rules.
     - Symptom spreaders are unusually contagious per interaction.
-    - Social spreaders are agents with a higher frequency of interactions
+    - Social spreaders are agents with a higher frequency of interactions.
 
     Other model features:
     - Agents are contagious from the moment they're infected.
@@ -70,7 +70,8 @@ class PopModel(Model):
         self.schedule.agents[0].infected_time = 0
 
         self.datacollector = DataCollector (
-            model_reporters= {"Infected": "infected",
+            model_reporters= {"Susceptible": "susceptible",
+                              "Infected": "infected",
                               "Immune": "immune",
                               "Dead": "dead"})
 
@@ -79,6 +80,7 @@ class PopModel(Model):
         self.schedule.step()
         self.pop =len(self.schedule.agents)
         self.living = sum([1 for a in self.schedule.agents if a.alive])
+        self.susceptible = sum([1 for a in self.schedule.agents if a.alive and not a.infected and not a.immune])
         self.infected = sum([1 for a in self.schedule.agents if a.infected])
         self.immune = sum([1 for a in self.schedule.agents if a.immune])
         self.dead = sum([1 for a in self.schedule.agents if a.alive == False])
