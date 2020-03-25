@@ -78,18 +78,16 @@ class PopModel(Model):
         self.alive = [a for a in self.schedule.agents if a.alive]
         self.schedule.step()
         self.pop =len(self.schedule.agents)
-        self.living = len([a for a in self.schedule.agents if a.alive])
-        self.infected = len([a for a in self.schedule.agents if a.infected])
-        self.immune = len([a for a in self.schedule.agents if a.immune])
-        self.dead = len([a for a in self.schedule.agents if a.alive == False])
-        self.hospitalized = len([a for a in self.schedule.agents if a.hospitalized])
-        self.needs_hospital = len([a for a in self.schedule.agents if a.needs_hospital])
+        self.living = sum([1 for a in self.schedule.agents if a.alive])
+        self.infected = sum([1 for a in self.schedule.agents if a.infected])
+        self.immune = sum([1 for a in self.schedule.agents if a.immune])
+        self.dead = sum([1 for a in self.schedule.agents if a.alive == False])
+        self.hospitalized = sum([1 for a in self.schedule.agents if a.hospitalized])
+        self.needs_hospital = sum([1 for a in self.schedule.agents if a.needs_hospital])
         if self.infected >= self.distancing_threshold and self.distancing == False:
             self.distancing = True
-            print("Distancing measures in effect! Compliant individuals will stop socializing so much")
         if self.infected < self.distancing_threshold and self.distancing == True:
             self.distancing = False
-            print("With the infection under control, distancing has been relaxed")
         self.datacollector.collect(self)
         self.time += 1
 
@@ -126,7 +124,7 @@ class Person(Agent):
         self.needs_hospital= False
 
     def cure(self):
-        """Bookkeeping function for handling deaths."""
+        """Bookkeeping function for handling recovery."""
         self.infected = False
         self.immune = True
         self.hospitalized = False
