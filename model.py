@@ -2,6 +2,8 @@ import random
 from mesa import Model, Agent
 from mesa.time import RandomActivation
 from mesa.datacollection import DataCollector
+import matplotlib. pyplot as plt
+import pandas as pd
 
 traits = {'normal':4900,
           'disobedients':4900,
@@ -14,7 +16,22 @@ traits = {'normal':4900,
           'beds':50,
           'test_sensitivity':.99,
           'test_specificity':0.1,
-          'distancing_threshold':10}
+          'distancing_threshold':50}
+
+def test_run():
+    m = PopModel(traits)
+    for _ in range(200): m.step()
+    out = m.datacollector.get_model_vars_dataframe()
+    out['Growth'] = data['Infected'].pct_change(periods = 5)
+    fig, ax1 = plt.subplots()
+    ax1.set_ylabel('Number of People')
+    ax1.set_xlabel('time (days)')
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('Infection Growth')
+    ax2.plot(out['Growth'], color='red')
+    ax1.plot(out['Infected'])
+    fig.show()
+
 
           
 class PopModel(Model):
